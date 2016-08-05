@@ -34,7 +34,7 @@ public class SqlFluent {
     }
 
     private SqlFluent add(String word){
-        if(mBuilder.length() == 0)
+        if(mBuilder.length() != 0)
             mBuilder.append(' ');
         mBuilder.append(word);
         return this;
@@ -461,13 +461,11 @@ public class SqlFluent {
     }
 
     public SqlFluent openBracket(){
-        mBuilder.append(" (");
-        return this;
+        return add(String.valueOf(OPEN_BRACKET));
     }
 
     public SqlFluent closeBracket(){
-        mBuilder.append(" )");
-        return this;
+        return addWithoutSpace(CLOSE_BRACKET);
     }
 
     //endregion
@@ -737,7 +735,7 @@ public class SqlFluent {
     public SqlFluent createTable(String table){
         return add(CREATE_TABLE)
                 .add(table)
-                .addWithoutSpace(OPEN_BRACKET);
+                .openBracket();
     }
 
     public SqlFluent columnDef(String column, @DataType.Type int type, int... optionals){
@@ -792,9 +790,8 @@ public class SqlFluent {
         return addWithoutSpace(CLOSE_BRACKET).conflict(conflictType);
     }
 
-    public SqlFluent autoIncrementDef(){
-        mBuilder.append(" AUTOINCREMENT");
-        return this;
+    public SqlFluent autoIncrement(){
+        return add(AUTOINCREMENT);
     }
 
     public SqlFluent unique(@Conflict.Type int conflictType){

@@ -16,10 +16,16 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+
+    sourceSets {
+        // Unit tests live in src/unitTest.
+        test.java.srcDir 'src/unitTests/java'
+    }
 }
 
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     testCompile 'junit:junit:4.12'
-    compile 'com.android.support:appcompat-v7:24.0.0'
+    testCompile 'org.assertj:assertj-core:1.3.0'
+    compile 'com.android.support:support-annotations:24.0.0'
 }

@@ -54,6 +54,7 @@ public class Value {
     protected static final String REPLACE                   = "REPLACE";
     protected static final String PRIMARY_KEY               = "PRIMARY KEY";
     protected static final String UNIQUE                    = "UNIQUE";
+    protected static final String AUTOINCREMENT             = "AUTOINCREMENT";
     protected static final String NOT_NULL                  = "NOT NULL";
     protected static final String DEFAULT                   = "DEFAULT";
     protected static final String CHECK                     = "CHECK";
