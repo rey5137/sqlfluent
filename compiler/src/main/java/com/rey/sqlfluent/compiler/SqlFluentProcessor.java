@@ -41,10 +41,12 @@ public final class SqlFluentProcessor extends AbstractProcessor {
     private Filer filer;
     private Elements elementUtils;
 
+    public static SqlFluentProcessor instance;
+
     @Override
     public synchronized void init(ProcessingEnvironment env) {
         super.init(env);
-
+        instance = this;
         elementUtils = env.getElementUtils();
         typeUtils = env.getTypeUtils();
         filer = env.getFiler();
@@ -94,18 +96,6 @@ public final class SqlFluentProcessor extends AbstractProcessor {
     private Map<TypeElement, ModelClass> findAndParseTargets(RoundEnvironment env) {
         Map<TypeElement, ModelClass> targetClassMap = new LinkedHashMap<>();
 
-        // Process each @Model element.
-        for (Element element : env.getElementsAnnotatedWith(Model.class)) {
-            debug("parse: " + element.toString());
-
-            if (!SuperficialValidation.validateElement(element)) continue;
-            try {
-                parseModelClass(element, targetClassMap);
-            } catch (Exception e) {
-                logParsingError(element, Model.class, e);
-            }
-        }
-
         // Process each @Column element.
         for (Element element : env.getElementsAnnotatedWith(Column.class)) {
             debug("parse: " + element.toString());
@@ -121,29 +111,18 @@ public final class SqlFluentProcessor extends AbstractProcessor {
         return targetClassMap;
     }
 
-    private void parseModelClass(Element element, Map<TypeElement, ModelClass> targetClassMap){
-        if(element.getKind() != ElementKind.CLASS)
-            throw new IllegalArgumentException("Only classes can be annotated with @" + Model.class.getSimpleName());
-
-        TypeElement enclosingElement = (TypeElement) element.getEnclosingElement();
-        getOrCreateTargetClass(targetClassMap, enclosingElement);
-    }
-
     private void parseColumnField(Element element, Map<TypeElement, ModelClass> targetClassMap){
+        if(element.getModifiers().contains(Modifier.STATIC) || element.getModifiers().contains(Modifier.PRIVATE) || element.getModifiers().contains(Modifier.FINAL))
+            throw new IllegalArgumentException("@" + Column.class.getSimpleName() + " cannot be annotated to private, static or final field.");
+
         TypeElement enclosingElement = (TypeElement) element.getEnclosingElement();
 
         String fieldName = element.getSimpleName().toString();
         String columnName = element.getAnnotation(Column.class).value();
+        TypeName fieldType = TypeName.get(element.asType());
         if(columnName == null || columnName.length() == 0)
             columnName = fieldName;
-
-        FieldSpec fieldSpec = FieldSpec.builder(TypeName.INT, fieldName)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .build();
-        FieldSpec staticColumnSpec = FieldSpec.builder(String.class, columnName)
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                .build();
-        ColumnField columnField = new ColumnField(fieldSpec, staticColumnSpec);
+        ColumnField columnField = new ColumnField(fieldName, columnName, fieldType);
 
         ModelClass modelClass = getOrCreateTargetClass(targetClassMap, enclosingElement);
         modelClass.addColumnField(columnField);
@@ -154,9 +133,11 @@ public final class SqlFluentProcessor extends AbstractProcessor {
         if (modelClass == null) {
             String packageName = getPackageName(enclosingElement);
             String className = getClassName(enclosingElement, packageName);
-            ClassName indexClassName = ClassName.get(packageName, className + "_Index");
+            ClassName modelClassName = ClassName.get(packageName, className);
+            ClassName indexClassName = ClassName.get(packageName, className + "Index");
+            ClassName queryClassName = ClassName.get(packageName, className + "Query");
 
-            modelClass = new ModelClass(indexClassName);
+            modelClass = new ModelClass(modelClassName, indexClassName, queryClassName);
             targetClassMap.put(enclosingElement, modelClass);
         }
         return modelClass;
@@ -171,7 +152,7 @@ public final class SqlFluentProcessor extends AbstractProcessor {
         return type.getQualifiedName().toString().substring(packageLen).replace('.', '$');
     }
 
-    private void debug(String message) {
+    public void debug(String message) {
         processingEnv.getMessager().printMessage(NOTE, message);
     }
 
