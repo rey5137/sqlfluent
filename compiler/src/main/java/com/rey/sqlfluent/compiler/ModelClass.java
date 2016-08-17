@@ -1,9 +1,8 @@
 package com.rey.sqlfluent.compiler;
 
 import android.support.annotation.NonNull;
-import android.support.annotation.StringDef;
 
-import com.squareup.javapoet.AnnotationSpec;
+import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
@@ -12,6 +11,7 @@ import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -24,12 +24,17 @@ import javax.lang.model.element.Modifier;
  */
 public class ModelClass {
 
-    private static final TypeName TYPE_STRING = TypeName.get(String.class);
+    public static final TypeName TYPE_STRING = TypeName.get(String.class);
+
+    private static final String METHOD_INSTANCE = "instance";
+    private static final String METHOD_LOAD = "fromCursor";
 
     private final ClassName modelClassName;
     private final ClassName indexClassName;
     private final ClassName queryClassName;
-    private List<ColumnField> fields = new ArrayList<>();
+
+    private List<ColumnField> columnFields = new ArrayList<>();
+    private List<QueryMethod> queryMethods = new ArrayList<>();
 
     public ModelClass(ClassName modelClassName, ClassName indexClassName, ClassName queryClassName){
         this.modelClassName = modelClassName;
@@ -38,21 +43,19 @@ public class ModelClass {
     }
 
     public void addColumnField(ColumnField... fields){
-        Collections.addAll(this.fields, fields);
+        Collections.addAll(this.columnFields, fields);
+    }
+
+    public void addQueryMethod(QueryMethod... methods){
+        Collections.addAll(this.queryMethods, methods);
     }
 
     private void buildIndexFields(TypeSpec.Builder builder){
-        for(ColumnField field : fields){
+        for(ColumnField field : columnFields){
             FieldSpec fieldSpec = FieldSpec.builder(TypeName.INT, field.fieldName)
                     .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                     .build();
             builder.addField(fieldSpec);
-
-            FieldSpec staticColumnSpec = FieldSpec.builder(String.class, field.getStaticColumnField())
-                    .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                    .initializer("$S", field.columnName)
-                    .build();
-            builder.addField(staticColumnSpec);
         }
     }
 
@@ -67,11 +70,11 @@ public class ModelClass {
                 .addModifiers(Modifier.PRIVATE)
                 .addParameter(parameterSpec);
 
-        for(ColumnField field : fields)
-            constructorBuilder.addStatement("$N = $N.getColumnIndex($N)",
-                    field.fieldName, cursorParam, field.getStaticColumnField());
+        for(ColumnField field : columnFields)
+            constructorBuilder.addStatement("$N = $N.getColumnIndex($S)",
+                    field.fieldName, cursorParam, field.columnName);
 
-        MethodSpec staticMethod = MethodSpec.methodBuilder("instance")
+        MethodSpec staticMethod = MethodSpec.methodBuilder(METHOD_INSTANCE)
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .addParameter(parameterSpec)
                 .returns(indexClassName)
@@ -84,8 +87,6 @@ public class ModelClass {
 
     private void buildLoadFieldCode(MethodSpec.Builder builder, String cursorParam, String modelParam, String indexParam, ColumnField field){
         builder.beginControlFlow("if($N.$N >= 0)", indexParam, field.fieldName);
-
-        SqlFluentProcessor.instance.debug("build: " + field.fieldType + " " + field.fieldName);
 
         if(field.fieldType.equals(TypeName.INT))
             builder.addStatement("$N.$N = $N.getInt($N.$N)", modelParam, field.fieldName, cursorParam, indexParam, field.fieldName);
@@ -120,7 +121,7 @@ public class ModelClass {
         ParameterSpec indexParamSpec = ParameterSpec.builder(indexClassName, indexParam)
                 .build();
 
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("fromCursor")
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(METHOD_LOAD)
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .addParameter(cursorParamSpec)
                 .addParameter(modelParamSpec)
@@ -134,12 +135,82 @@ public class ModelClass {
                 .addStatement("$N = $T.instance($N)", indexParam, indexClassName, cursorParam)
                 .endControlFlow();
 
-        for(ColumnField field : fields)
+        for(ColumnField field : columnFields)
             buildLoadFieldCode(builder, cursorParam, modelParam, indexParam, field);
 
         builder.addStatement("return $N", modelParam);
 
         return builder.build();
+    }
+
+    private <T> Class<? extends T[]> getArrayClass(Class<T> clazz) {
+        return (Class<? extends T[]>) Array.newInstance(clazz, 0).getClass();
+    }
+
+    private MethodSpec buildQueryMethod(QueryMethod queryMethod){
+        String dbParam = "db";
+        ClassName dbClass = ClassName.get("android.database.sqlite", "SQLiteDatabase");
+        ParameterSpec dbParamSpec = ParameterSpec.builder(dbClass, dbParam)
+                .addAnnotation(NonNull.class)
+                .build();
+
+        MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(queryMethod.methodName)
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .addParameter(dbParamSpec)
+                .returns(queryMethod.singleResult ? modelClassName : ArrayTypeName.of(modelClassName));
+
+        if(queryMethod.paramTypes != null)
+            for(int i = 0; i < queryMethod.paramTypes.length; i++)
+                methodBuilder.addParameter(queryMethod.paramTypes[i], queryMethod.paramNames[i]);
+
+        if(queryMethod.originalIsMethod) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("String sql = ")
+                    .append(modelClassName.simpleName()).append('.').append(queryMethod.originalMethodName)
+                    .append('(');
+            if (queryMethod.paramNames != null)
+                for (int i = 0; i < queryMethod.paramNames.length; i++) {
+                    if (i > 0)
+                        sb.append(", ");
+                    sb.append(queryMethod.paramNames[i]);
+                }
+            sb.append(")");
+            methodBuilder.addStatement(sb.toString());
+        }
+        else
+            methodBuilder.addStatement("String sql = $T.$N", modelClassName, queryMethod.originalMethodName);
+
+        if(queryMethod.singleResult){
+            methodBuilder.addStatement("Cursor cursor = $N.rawQuery(sql, null)", dbParam)
+                    .addStatement("$T model = null", modelClassName)
+                    .beginControlFlow("if(cursor.moveToFirst())")
+                    .addStatement("model = $N(cursor, null, null)", METHOD_LOAD)
+                    .endControlFlow()
+                    .addStatement("cursor.close()")
+                    .addStatement("return model");
+        }
+        else {
+            methodBuilder.addStatement("Cursor cursor = $N.rawQuery(sql, null)", dbParam)
+                    .addStatement("$T[] models = null", modelClassName)
+                    .beginControlFlow("if(cursor.moveToFirst())")
+                    .addStatement("$T index = $T.$N(cursor)", indexClassName, indexClassName, METHOD_INSTANCE)
+                    .addStatement("models = new $T[cursor.getCount()]", modelClassName)
+                    .beginControlFlow("for(int i = 0; i < models.length; i++)")
+                    .addStatement("models[i] = $N(cursor, null, index)", METHOD_LOAD)
+                    .addStatement("cursor.moveToNext()")
+                    .endControlFlow()
+                    .endControlFlow()
+                    .addStatement("cursor.close()")
+                    .addStatement("return models");
+        }
+
+        return methodBuilder.build();
+    }
+
+    private void buildQueryMethods(TypeSpec.Builder builder){
+        builder.addMethod(buildLoadMethod());
+        for(QueryMethod queryMethod : queryMethods)
+            builder.addMethod(buildQueryMethod(queryMethod));
     }
 
     Collection<JavaFile> brewJava() {
@@ -154,7 +225,7 @@ public class ModelClass {
 
         TypeSpec.Builder queryClassBuilder = TypeSpec.classBuilder(queryClassName)
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL);
-        queryClassBuilder.addMethod(buildLoadMethod());
+        buildQueryMethods(queryClassBuilder);
 
         JavaFile queryClassFile = JavaFile.builder(queryClassName.packageName(), queryClassBuilder.build())
                 .addFileComment("Generated code from Sql Fluent. Do not modify!")

@@ -17,7 +17,4 @@ public class ColumnField {
         this.fieldType = fieldType;
     }
 
-    public String getStaticColumnField(){
-        return "COL_" + fieldName.toUpperCase();
-    }
 }

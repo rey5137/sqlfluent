@@ -8,6 +8,14 @@ import java.lang.annotation.Target;
 /**
  * Created by Rey on 8/16/2016.
  */
-@Target(ElementType.TYPE)
+@Target({ElementType.METHOD, ElementType.FIELD})
 @Retention(RetentionPolicy.SOURCE)
-public @interface Model {}
+public @interface Query {
+
+    /** The name of query method */
+    String value() default "";
+
+    /** Return only first result or not.*/
+    boolean singleResult() default false;
+
+}
