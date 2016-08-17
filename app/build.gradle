@@ -40,7 +40,7 @@ dependencies {
     testCompile 'junit:junit:4.12'
     compile 'com.android.support:appcompat-v7:24.0.0'
 
-    compile project(':sqlfluent')
-    compile project(':annotation')
-    apt project(':compiler')
+    compile project(':sqlfluent-core')
+    compile project(':sqlfluent-annotation')
+    apt project(':sqlfluent-compiler')
 }

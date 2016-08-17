@@ -1,1 +1,1 @@
-include ':app', ':sqlfluent', ':compiler', ':annotation'
+include ':app', ':sqlfluent-core', ':sqlfluent-compiler', ':sqlfluent-annotation'
