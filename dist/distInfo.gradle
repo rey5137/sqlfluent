@@ -13,7 +13,7 @@ ext.distInfo = [
 
     publishedGroupId        : "com.github.rey5137",
     libraryName             : "Sql Fluent",
-    libraryVersion          : "0.0.2",
+    libraryVersion          : "0.0.4",
     libraryDescription      : "A small library help building SQL query in fluent style.",
     artifact                : "sqlfluent",
     libraryPackaging        : "jar",
