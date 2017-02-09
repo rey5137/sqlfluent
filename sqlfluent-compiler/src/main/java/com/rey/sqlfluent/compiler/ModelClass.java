@@ -1,7 +1,5 @@
 package com.rey.sqlfluent.compiler;
 
-import android.support.annotation.NonNull;
-
 import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.FieldSpec;
@@ -63,7 +61,6 @@ public class ModelClass {
         String cursorParam = "cursor";
         ClassName cursorClass = ClassName.get("android.database", "Cursor");
         ParameterSpec parameterSpec = ParameterSpec.builder(cursorClass, cursorParam)
-                .addAnnotation(NonNull.class)
                 .build();
 
         MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder()
@@ -110,7 +107,6 @@ public class ModelClass {
         String cursorParam = "cursor";
         ClassName cursorClass = ClassName.get("android.database", "Cursor");
         ParameterSpec cursorParamSpec = ParameterSpec.builder(cursorClass, cursorParam)
-                .addAnnotation(NonNull.class)
                 .build();
 
         String modelParam = "model";
@@ -151,7 +147,6 @@ public class ModelClass {
         String dbParam = "db";
         ClassName dbClass = ClassName.get("android.database.sqlite", "SQLiteDatabase");
         ParameterSpec dbParamSpec = ParameterSpec.builder(dbClass, dbParam)
-                .addAnnotation(NonNull.class)
                 .build();
 
         MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(queryMethod.methodName)
