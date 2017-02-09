@@ -1,5 +1,12 @@
 apply plugin: 'java'
+apply plugin: "maven"
 
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
 }
+
+// Place it at the end of the file
+apply from: "$rootProject.projectDir/dist/distInfo.gradle"
+def distInfo = ext.distInfo;
+group = distInfo.publishedGroupId
+version = distInfo.libraryVersion

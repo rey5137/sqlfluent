@@ -1,4 +1,5 @@
 apply plugin: 'java'
+apply plugin: "maven"
 
 sourceCompatibility = JavaVersion.VERSION_1_7
 targetCompatibility = JavaVersion.VERSION_1_7
@@ -11,3 +12,9 @@ dependencies {
     compile 'com.google.auto.service:auto-service:1.0-rc2'
     compile 'com.squareup:javapoet:1.7.0'
 }
+
+// Place it at the end of the file
+apply from: "$rootProject.projectDir/dist/distInfo.gradle"
+def distInfo = ext.distInfo;
+group = distInfo.publishedGroupId
+version = distInfo.libraryVersion
